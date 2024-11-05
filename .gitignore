@@ -1,0 +1,89 @@
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+.env/
+.venv.bak/
+env.bak/
+snowpark_env/
+
+# Airflow specific
+airflow_home/
+logs/
+*.log
+airflow.db
+*.snowflake
+
+# dotenv environment variables
+.env
+.env.*
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Pytest cache
+.cache/
+pytest_cache/
+
+# Coverage reports
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Rope project settings
+.ropeproject
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Pipenv
+Pipfile.lock
+
+# Lock files
+poetry.lock
+Pipfile.lock
+
+# SQL files
+*.sql
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Miscellaneous
+*.pid
+*.seed
+*.pid.lock
+
+# Local configuration files
+local_settings.py
+airflow_local_settings.py
