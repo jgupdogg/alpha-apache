@@ -9,7 +9,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from utils.workflows.govt_sites.sites.site_agg import site_parsers
 from utils.components.scraper.scraper_api import make_scraper_request
-from superceeded.articles import Article
+from classes.articles import Article
 from utils.components.vectorizer.pinecone_utils import initialize_pinecone
 from bs4 import BeautifulSoup
 from snowflake.snowpark import Session

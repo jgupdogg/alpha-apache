@@ -227,7 +227,7 @@ with DAG(
     'data_ingestion_dag',
     default_args=default_args,
     description='A DAG to ingest data into Snowflake with clustering and upserts',
-    schedule_interval='*/1 * * * *',  # Every minute
+    schedule='@daily',
     catchup=False,  # Set to False to prevent backfilling
 ) as dag:
 

@@ -1,6 +1,6 @@
 
 from datetime import datetime
-from dags.utils.components.scraper.scraper_api import make_scraper_request
+from utils.components.scraper.scraper_api import make_scraper_request
 import os
 from bs4 import BeautifulSoup
 

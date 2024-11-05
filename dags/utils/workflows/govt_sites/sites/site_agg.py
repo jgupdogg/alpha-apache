@@ -1,4 +1,4 @@
-from dags.utils.workflows.govt_sites.sites import bea, bls, cbo, fed_beige, ny_fed, fed, treasury, white_house
+from utils.workflows.govt_sites.sites import bea, bls, cbo, fed_beige, ny_fed, fed, treasury, white_house
 
 site_parsers = {
     "bea": {
