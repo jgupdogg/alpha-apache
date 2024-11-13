@@ -297,7 +297,7 @@ dag = DAG(
     'govt_scraper_dag',
     default_args=default_args,
     description='DAG to scrape, summarize, and upsert government site articles to Pinecone and Snowflake',
-    schedule_interval='@daily',  # Adjust the schedule as needed
+    schedule='@hourly',  # Adjust the schedule as needed
     catchup=False,
     max_active_runs=1,
 )

@@ -301,7 +301,7 @@ with DAG(
     'summarize_stock_news_dag',
     default_args=default_args,
     description='A DAG to summarize stock news articles, update STOCK_NEWS table, and upsert summaries to Pinecone',
-    schedule_interval='@hourly',  
+    schedule='@hourly',  
     catchup=False,
 ) as dag:
 

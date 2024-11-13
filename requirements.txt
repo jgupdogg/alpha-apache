@@ -1,6 +1,6 @@
 apache-airflow-providers-snowflake
 apache-airflow-providers-http
-snowflake-snowpark-python[pandas]
+snowflake-snowpark-python==1.24.0
 snowflake-sqlalchemy
 aiohttp
 python-dotenv==1.0.0
@@ -21,3 +21,4 @@ openai==0.27.8
 pinecone==5.1.0
 tiktoken
 pytest
+aiohttp

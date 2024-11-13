@@ -11,7 +11,7 @@ from airflow.operators.python import PythonOperator
 from datetime import datetime
 import logging
 import sys
-from dags.utils.workflows.tickers.data_processing import (
+from utils.workflows.tickers.data_processing import (
     process_company_data,
     normalize_profile_data,
     normalize_metrics_data,
@@ -51,8 +51,11 @@ def run_ticker_outlook():
     API_KEY = os.getenv('API_KEY')
     BASE_URL = 'https://financialmodelingprep.com/api/v4'
 
+    SF_ACCOUNT = os.getenv('SNOWFLAKE_ACCOUNT')
+    SF_REGION = os.getenv('SNOWFLAKE_REGION')
+
     # Snowflake connection parameters
-    SNOWFLAKE_ACCOUNT = f"{os.getenv('SNOWFLAKE_ACCOUNT')}.{os.getenv('SNOWFLAKE_REGION')}"
+    SNOWFLAKE_ACCOUNT = f'{SF_ACCOUNT}.{SF_REGION}'
     SNOWFLAKE_USER = os.getenv('SNOWFLAKE_USER')
     SNOWFLAKE_PASSWORD = os.getenv('SNOWFLAKE_PASSWORD')
     SNOWFLAKE_ROLE = os.getenv('SNOWFLAKE_ROLE')

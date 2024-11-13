@@ -1,7 +1,7 @@
 # dags/utils/data_processing.py
 
 from typing import Dict, List
-from dags.utils.workflows.tickers.data_models import (
+from utils.workflows.tickers.data_models import (
     Profile, Metrics, Ratios, InsideTrade, SplitHistory, StockDividend, StockNews
 )
 import datetime
