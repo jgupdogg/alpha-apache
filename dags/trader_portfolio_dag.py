@@ -64,7 +64,7 @@ async def main_async():
     Main asynchronous function to fetch and aggregate portfolio balances of traders and insert into Snowflake.
     """
     # Initialize the BirdEye SDK
-    sdk = BirdEyeSDK(API_KEY, chain="solana")
+    sdk = BirdEyeSDK(API_KEY)
     logger.info("Initialized BirdEyeSDK.")
 
     # Create a Snowflake connector connection
@@ -101,7 +101,11 @@ async def main_async():
     # Fetch portfolio balances for the traders
     logger.info("Fetching portfolio balances for traders...")
     try:
-        df_portfolio_balances = await asyncio.to_thread(get_portfolio_balances, api_sdk=sdk, trader_addresses=trader_addresses)
+        df_portfolio_balances = await asyncio.to_thread(
+            get_portfolio_balances,
+            api_sdk=sdk,
+            trader_addresses=trader_addresses
+        )
         logger.info(f"Fetched portfolio balances with {len(df_portfolio_balances)} records.")
     except Exception as e:
         logger.exception(f"Failed to fetch portfolio balances: {e}")
@@ -205,6 +209,9 @@ async def main_async():
     try:
         # Define target table name
         target_table = 'TRADER_PORTFOLIO_AGG'
+
+        # Reset index to avoid potential issues
+        aggregated_df = aggregated_df.reset_index(drop=True)
 
         # Insert into Snowflake with use_logical_type=True to handle timezone-aware datetimes
         success, nchunks, nrows, _ = write_pandas(conn, aggregated_df, target_table, use_logical_type=True)
