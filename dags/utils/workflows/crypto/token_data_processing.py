@@ -52,16 +52,38 @@ async def fetch_token_data(sdk: BirdEyeSDK, token_addresses: List[str]) -> pd.Da
                         overview_data = token_overview.get('data') or {}
                         data['TOKEN_ADDRESS'] = overview_data.get('address')
                         data['SYMBOL'] = overview_data.get('symbol')
-                        data['DECIMALS'] = overview_data.get('decimals')
+                        
+                        # Ensure DECIMALS is an integer
+                        decimals = overview_data.get('decimals')
+                        if decimals is not None:
+                            try:
+                                data['DECIMALS'] = int(decimals)
+                            except ValueError:
+                                logger.error(f"Invalid DECIMALS value for address {address}: {decimals}")
+                                data['DECIMALS'] = None
+                        else:
+                            data['DECIMALS'] = None
+
                         data['NAME'] = overview_data.get('name')
                         extensions = overview_data.get('extensions') or {}
                         data['WEBSITE'] = extensions.get('website')
                         data['TWITTER'] = extensions.get('twitter')
                         data['DESCRIPTION'] = extensions.get('description')
                         data['LOGO_URI'] = overview_data.get('logoURI')
+
+                        # Ensure HOLDER_COUNT is an integer
+                        holder = overview_data.get('holder')
+                        if holder is not None:
+                            try:
+                                data['HOLDER_COUNT'] = int(holder)
+                            except ValueError:
+                                logger.error(f"Invalid HOLDER_COUNT value for address {address}: {holder}")
+                                data['HOLDER_COUNT'] = None
+                        else:
+                            data['HOLDER_COUNT'] = None
+
                         data['LIQUIDITY'] = overview_data.get('liquidity')
                         data['MARKET_CAP'] = overview_data.get('mc')
-                        data['HOLDER_COUNT'] = overview_data.get('holder')
                         data['PRICE'] = overview_data.get('price')
                         data['V24H_USD'] = overview_data.get('v24hUSD')
                         data['V_BUY_HISTORY_24H_USD'] = overview_data.get('vBuyHistory24hUSD')

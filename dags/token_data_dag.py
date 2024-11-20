@@ -5,7 +5,7 @@ import asyncio
 from datetime import datetime, timedelta
 import logging
 import sys
-
+import numpy as np
 from dotenv import load_dotenv
 
 from airflow import DAG
@@ -226,9 +226,44 @@ async def main_async():
         # Reorder the DataFrame columns to match the expected order
         token_data_df = token_data_df[expected_columns]
 
-        # Clean all data tuples
+        # Round float columns to 6 decimal places to prevent Snowflake float precision issues
+        float_columns = [
+            'LIQUIDITY',
+            'MARKET_CAP',
+            'PRICE',
+            'V24H_USD',
+            'V_BUY_HISTORY_24H_USD',
+            'V_SELL_HISTORY_24H_USD',
+            'TOP10_HOLDER_PERCENT',
+            'OWNER_PERCENTAGE',
+            'CREATOR_PERCENTAGE'
+        ]
+        for col in float_columns:
+            if col in token_data_df.columns and token_data_df[col].dtype == 'float':
+                token_data_df[col] = token_data_df[col].round(6)
+                logger.debug(f"Rounded column {col} to 6 decimal places.")
+
+        # Convert DataFrame to list of tuples
         data_tuples = [tuple(clean_param(x) for x in row) for row in token_data_df.itertuples(index=False, name=None)]
         logger.info("Cleaned data tuples by replacing 'NAN' and NaN values with None.")
+
+        # **Data Validation Before Insertion**
+        # Check for any float values in integer fields
+        for idx, row in enumerate(data_tuples):
+            decimals = row[2]  # DECIMALS is the 3rd field
+            holder_count = row[10]  # HOLDER_COUNT is the 11th field
+
+            # Log the type of DECIMALS and HOLDER_COUNT for debugging
+            logger.debug(f"Record {idx} DECIMALS value: {decimals} (type: {type(decimals)})")
+            logger.debug(f"Record {idx} HOLDER_COUNT value: {holder_count} (type: {type(holder_count)})")
+
+            if decimals is not None and not isinstance(decimals, (int, np.integer)):
+                logger.error(f"Record {idx} has non-integer DECIMALS: {decimals}")
+                raise ValueError(f"Record {idx} has non-integer DECIMALS: {decimals}")
+
+            if holder_count is not None and not isinstance(holder_count, (int, np.integer)):
+                logger.error(f"Record {idx} has non-integer HOLDER_COUNT: {holder_count}")
+                raise ValueError(f"Record {idx} has non-integer HOLDER_COUNT: {holder_count}")
 
         # Insert data into STAGE_TOKEN_DATA and perform MERGE
         try:
@@ -237,7 +272,7 @@ async def main_async():
             cursor.execute(truncate_sql)
             logger.info("Truncated STAGE_TOKEN_DATA table.")
 
-            # Prepare the INSERT statement for STAGE_TOKEN_DATA
+            # Prepare the INSERT statement for STAGE_TOKEN_DATA with %s placeholders
             insert_sql = f"""
             INSERT INTO {SNOWFLAKE_DATABASE}.{SNOWFLAKE_SCHEMA}.STAGE_TOKEN_DATA (
                 TOKEN_ADDRESS,
@@ -271,7 +306,7 @@ async def main_async():
             cursor.executemany(insert_sql, data_tuples)
             logger.info(f"Inserted {len(data_tuples)} records into STAGE_TOKEN_DATA.")
 
-            # Perform MERGE from STAGE_TOKEN_DATA into TOKEN_DATA
+            # Prepare the MERGE statement
             merge_sql = f"""
             MERGE INTO {SNOWFLAKE_DATABASE}.{SNOWFLAKE_SCHEMA}.TOKEN_DATA AS target
             USING {SNOWFLAKE_DATABASE}.{SNOWFLAKE_SCHEMA}.STAGE_TOKEN_DATA AS source
@@ -347,6 +382,8 @@ async def main_async():
                     source.DATE_ADDED
                 );
             """
+
+            # Perform MERGE from STAGE_TOKEN_DATA into TOKEN_DATA
             cursor.execute(merge_sql)
             logger.info("Merged data from STAGE_TOKEN_DATA into TOKEN_DATA successfully.")
 
