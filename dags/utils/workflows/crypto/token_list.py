@@ -2,10 +2,22 @@ TOKEN_LIST = {
     "ai":{
         "GOAT":"CzLSujWBLFsSjncfkh59rUFqvafWcY5tzedWJSuypump",
         "FARTCOIN":"9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump", 
+        "GRASS":"Grass7B4RdKfBCjTKgSqnXkqjwiGvQyFbuSCUJr3XXjs", 
+        "ai16z":"HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC",
+        "ACT":"GJAFwWjJ3vnTsrQVabjBVK2TYB1YtRCQXRDfDgUnpump",
         "ZEREBRO":"8x5VqbHA8D7NkD52uNuS5nnt3PwA8pLD34ymskeSo2Wn", 
-        "CENTS":"C9FVTtx4WxgHmz55FEvQgykq8rqiLS8xRBVgqQVtpump", 
-        "YOUSIM":"66gsTs88mXJ5L4AtJnWqFW6H2L5YQDRy4W41y6zbpump",
-        "GNON":"HeJUFDxfJSzYFUuHLxkMqCgytU31G6mjP4wKviwqpump",
-        "ACT":"GJAFwWjJ3vnTsrQVabjBVK2TYB1YtRCQXRDfDgUnpump"
+        "PROJECT89":"Bz4MhmVRQENiCou7ZpJ575wpjNFjBjVBSiVhuNg1pump", 
+        "WORM":"DwDtUqBZJtbRpdjsFw3N7YKB5epocSru25BGcVhfcYtg", 
+        "AVB":"6d5zHW5B8RkGKd51Lpb9RqFQSqDudr9GJgZ1SgQZpump"
     },
+    "animals":{
+        "PNUT":"2qEHjDLDLbuBgRYvsxhc5D6uDWAivNFZGan56P1tpump", 
+        "LUCE":"CBdCxKo9QavR9hfShgpEBG3zekorAeD7W1jfq2o3pump",
+        "MOODENG":"ED5nyyWEzpPPiWimP8vYm7sD7TD3LAt3Q3gRTWHzPJBY", 
+        "PUPS":"2oGLxYuNBJRcepT1mEV6KnETaLD7Bf6qq3CM6skasBfe", 
+        "FWOG":"A8C3xuqscfmyLrte3VmTqrAq8kgMASius9AFNANwpump",
+        "WIF":"EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm", 
+        "POPCAT":"7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr",
+        "MICHI":"5mbK36SZ7J19An8jFochhQS4of8g6BwUjbeCSxBSoWdp"
+    }
 }

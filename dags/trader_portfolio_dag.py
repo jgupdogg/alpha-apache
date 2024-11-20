@@ -5,6 +5,8 @@ import asyncio
 from datetime import datetime, timedelta
 import logging
 import sys
+import pendulum
+
 
 from dotenv import load_dotenv
 from typing import List
@@ -32,6 +34,9 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env'))
 load_dotenv(dotenv_path)
+
+local_tz = pendulum.timezone("America/New_York")  # Replace with your timezone
+
 
 default_args = {
     'owner': 'justin',  # Replace with your name
@@ -513,7 +518,7 @@ with DAG(
     'trader_portfolio_dag',
     default_args=default_args,
     description='A DAG to fetch and aggregate portfolio balances of traders from BirdEye API into Snowflake',
-    schedule_interval='@hourly',  # Run every hour
+    schedule_interval='@hourly',  # Updated schedule
     catchup=False,
 ) as dag:
 

@@ -5,13 +5,12 @@ import asyncio
 from datetime import datetime, timedelta
 import logging
 import sys
-from utils.workflows.crypto.token_list import TOKEN_LIST
 
 from dotenv import load_dotenv
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-
+from utils.workflows.crypto.token_list import TOKEN_LIST
 # Ensure Airflow can find the utils package:
 sys.path.append(os.path.join(os.path.dirname(__file__), 'utils'))
 
@@ -76,6 +75,9 @@ async def main_async():
         logger.warning("No top traders data fetched.")
         return
 
+    logger.info(f"Columns in df_traders from fetch_top_traders: {df_traders.columns.tolist()}")
+    logger.info(f"First few rows of df_traders:\n{df_traders.head()}")
+
     # Identify successful traders
     logger.info("Identifying successful traders...")
     try:
@@ -88,6 +90,45 @@ async def main_async():
     if df_successful_traders.empty:
         logger.warning("No successful traders identified.")
         return
+
+    logger.info(f"Columns in df_successful_traders: {df_successful_traders.columns.tolist()}")
+    logger.info(f"First few rows of df_successful_traders:\n{df_successful_traders.head()}")
+
+    # Filter traders with FREQ >=3 using .loc to avoid SettingWithCopyWarning
+    logger.info("Filtering traders with FREQ >=3...")
+    df_successful_traders = df_successful_traders.loc[df_successful_traders['FREQ'] >= 3].copy()
+    logger.info(f"{len(df_successful_traders)} traders after filtering with FREQ >=3.")
+
+    if df_successful_traders.empty:
+        logger.warning("No traders with FREQ >=3 after filtering.")
+        return
+
+    # Rename 'TRADER_ADDRESS' to 'ADDRESS' for consistency after identification
+    if 'TRADER_ADDRESS' in df_successful_traders.columns:
+        df_successful_traders = df_successful_traders.rename(columns={'TRADER_ADDRESS': 'ADDRESS'})
+        logger.info("Renamed 'TRADER_ADDRESS' to 'ADDRESS' in df_successful_traders.")
+    else:
+        logger.error("'TRADER_ADDRESS' column not found in df_successful_traders.")
+        return
+
+    logger.info(f"Columns in df_successful_traders: {df_successful_traders.columns.tolist()}")
+    logger.info(f"First few rows of df_successful_traders:\n{df_successful_traders.head()}")
+
+    # At this point, 'CATEGORY' is already correctly assigned based on 'TOKEN_SYMBOL'
+
+    # Convert CATEGORY and TOKEN_SYMBOL lists to comma-separated strings and ensure uniqueness
+    logger.info("Converting CATEGORY and TOKEN_SYMBOL lists to comma-separated strings...")
+    df_successful_traders['CATEGORY'] = df_successful_traders.groupby('ADDRESS')['CATEGORY'].transform(
+        lambda x: ','.join(sorted(set(x)))
+    )
+    df_successful_traders['TOKEN_SYMBOL'] = df_successful_traders.groupby('ADDRESS')['TOKEN_SYMBOL'].transform(
+        lambda x: ','.join(sorted(set(x)))
+    )
+    logger.info("Converted CATEGORY and TOKEN_SYMBOL to comma-separated strings.")
+
+    # Drop duplicates to have one row per ADDRESS
+    df_successful_traders = df_successful_traders.drop_duplicates(subset=['ADDRESS'])
+    logger.info(f"{len(df_successful_traders)} unique traders after deduplication.")
 
     # Connect to Snowflake
     try:
@@ -105,74 +146,66 @@ async def main_async():
         logger.exception(f"Failed to connect to Snowflake: {e}")
         return
 
-    # Insert successful traders into Snowflake
     try:
-        # Check existing traders to avoid duplicates
-        existing_traders_df = pd.read_sql("SELECT ADDRESS, CATEGORY FROM TRADERS", conn)
-        
-        # Rename 'ADDRESS' to 'EXISTING_ADDRESS' to prevent duplication
-        existing_traders_df = existing_traders_df.rename(columns={'ADDRESS': 'EXISTING_ADDRESS'})
-
-        # Merge df_successful_traders with existing_traders_df to find new entries
-        merged_df = pd.merge(
-            df_successful_traders,
-            existing_traders_df,
-            how='left',
-            left_on=['TRADER_ADDRESS', 'CATEGORY'],
-            right_on=['EXISTING_ADDRESS', 'CATEGORY'],
-            indicator=True,
-            suffixes=('', '_existing')
+        # Write df_successful_traders to a staging table
+        staging_table = 'TRADERS_STAGING'
+        logger.info(f"Writing data to staging table: {staging_table}...")
+        success, nchunks, nrows, _ = write_pandas(
+            conn, 
+            df_successful_traders, 
+            staging_table, 
+            auto_create_table=True, 
+            overwrite=True
         )
-
-        # Log the columns of merged_df for debugging
-        logger.info(f"Columns in merged_df after merge: {merged_df.columns.tolist()}")
-        logger.info(f"First few rows of merged_df:\n{merged_df.head()}")
-
-        # Now filter for new entries
-        new_traders_df = merged_df[merged_df['_merge'] == 'left_only'].copy()
-
-        if new_traders_df.empty:
-            logger.info("No new traders to insert.")
+        if success:
+            logger.info(f"Written {nrows} rows to staging table {staging_table}.")
+        else:
+            logger.error(f"Failed to write data to staging table {staging_table}.")
             return
 
-        # Drop '_merge' and 'EXISTING_ADDRESS' columns
-        new_traders_df = new_traders_df.drop(columns=['_merge', 'EXISTING_ADDRESS'])
-
-        # Rename 'TRADER_ADDRESS' to 'ADDRESS'
-        new_traders_df = new_traders_df.rename(columns={'TRADER_ADDRESS': 'ADDRESS'})
-
-        # Log the columns before reordering for debugging
-        logger.info(f"Columns in new_traders_df before reordering: {new_traders_df.columns.tolist()}")
-        logger.info(f"First few rows of new_traders_df:\n{new_traders_df.head()}")
-
-        # Reorder columns to match Snowflake table schema
-        new_traders_df = new_traders_df[['DATE_ADDED', 'ADDRESS', 'CATEGORY', 'TOKEN_SYMBOL', 'FREQ']]
-
-        # Log the final columns and data for verification
-        logger.info(f"Final columns for insertion: {new_traders_df.columns.tolist()}")
-        logger.info(f"First few rows of new_traders_df ready for insertion:\n{new_traders_df.head()}")
-
-        # Insert into Snowflake with use_logical_type=True to handle timezone-aware datetimes
-        success, nchunks, nrows, _ = write_pandas(conn, new_traders_df, 'TRADERS', use_logical_type=True)
-        if success:
-            logger.info(f"Inserted {nrows} new traders into TRADERS table.")
-        else:
-            logger.error("Failed to insert data into TRADERS table.")
+        # Perform MERGE to upsert data into TRADERS table
+        logger.info("Performing MERGE to upsert data into TRADERS table...")
+        merge_sql = f"""
+            MERGE INTO {SNOWFLAKE_SCHEMA}.TRADERS AS target
+            USING {SNOWFLAKE_SCHEMA}.{staging_table} AS source
+            ON target.ADDRESS = source.ADDRESS
+            WHEN MATCHED THEN
+                UPDATE SET
+                    FREQ = target.FREQ + source.FREQ,
+                    CATEGORY = CONCAT(target.CATEGORY, ',', source.CATEGORY),
+                    TOKEN_SYMBOL = CONCAT(target.TOKEN_SYMBOL, ',', source.TOKEN_SYMBOL)
+            WHEN NOT MATCHED THEN
+                INSERT (DATE_ADDED, ADDRESS, CATEGORY, TOKEN_SYMBOL, FREQ)
+                VALUES (source.DATE_ADDED, source.ADDRESS, source.CATEGORY, source.TOKEN_SYMBOL, source.FREQ);
+        """
+        logger.debug(f"MERGE SQL Statement:\n{merge_sql}")
+        cursor = conn.cursor()
+        cursor.execute(merge_sql)
+        logger.info("MERGE statement executed successfully.")
     except Exception as e:
-        logger.exception(f"Error during data insertion: {e}")
+        logger.exception(f"Error during MERGE operation: {e}")
     finally:
-        # Close the Snowflake connection
+        # Drop the staging table
         try:
-            conn.close()
-            logger.info("Closed Snowflake connection.")
+            logger.info(f"Dropping staging table: {staging_table}...")
+            cursor.execute(f"DROP TABLE IF EXISTS {SNOWFLAKE_SCHEMA}.{staging_table}")
+            logger.info(f"Staging table {staging_table} dropped.")
         except Exception as e:
-            logger.exception(f"Failed to close Snowflake connection: {e}")
+            logger.exception(f"Failed to drop staging table {staging_table}: {e}")
+        finally:
+            cursor.close()
+            # Close the Snowflake connection
+            try:
+                conn.close()
+                logger.info("Closed Snowflake connection.")
+            except Exception as e:
+                logger.exception(f"Failed to close Snowflake connection: {e}")
 
 # DAG definition
 with DAG(
     'identify_successful_traders_dag',
     default_args=default_args,
-    description='A DAG to identify successful traders from BirdEye API and insert into Snowflake',
+    description='A DAG to identify successful traders from BirdEye API and upsert into Snowflake',
     schedule='@daily',
     catchup=False,
 ) as dag:
