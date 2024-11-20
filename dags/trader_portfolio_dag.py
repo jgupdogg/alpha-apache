@@ -7,7 +7,6 @@ import logging
 import sys
 import pendulum
 
-
 from dotenv import load_dotenv
 from typing import List
 
@@ -74,12 +73,23 @@ logger.info(f'SNOWFLAKE_SCHEMA: {SNOWFLAKE_SCHEMA}')
 def run_trader_portfolio():
     asyncio.run(main_async())
 
-def clean_param(param):
+def clean_param(param, expected_type=None):
     """
     Replace 'NAN', 'nan', 'NaN' strings, NaN float values, and pd.NaT with None.
+    Convert numeric strings to floats or ints based on expected_type if provided.
     """
-    if isinstance(param, str) and param.strip().upper() == 'NAN':
-        return None
+    if isinstance(param, str):
+        if param.strip().upper() == 'NAN':
+            return None
+        try:
+            if expected_type == 'int':
+                return int(float(param))
+            elif expected_type == 'float':
+                return float(param)
+            else:
+                return param
+        except ValueError:
+            return param
     if pd.isna(param):  # This will catch NaN and NaT
         return None
     return param
@@ -208,6 +218,9 @@ async def main_async():
             TRADER_COUNT=('TRADER_ADDRESS', 'nunique')
         ).reset_index()
 
+        # Ensure TRADER_COUNT is integer
+        aggregated_df['TRADER_COUNT'] = aggregated_df['TRADER_COUNT'].astype(int)
+
         # Add FETCH_DATE to aggregated_df
         aggregated_df['FETCH_DATE'] = fetch_date
 
@@ -307,13 +320,13 @@ async def main_async():
                     'V24H_USD': 'float',
                     'V_BUY_HISTORY_24H_USD': 'float',
                     'V_SELL_HISTORY_24H_USD': 'float',
+                    'CREATION_TIMESTAMP': 'str',
                     'OWNER': 'str',
                     'TOP10_HOLDER_PERCENT': 'float',
                     'OWNER_PERCENTAGE': 'float',
                     'CREATOR_PERCENTAGE': 'float',
                     'LAST_UPDATED': 'str',
-                    'DATE_ADDED': 'str',
-                    'CREATION_TIMESTAMP': 'str'  # Since we converted to string
+                    'DATE_ADDED': 'str'
                 })
 
                 # Replace NaN with None
@@ -353,52 +366,44 @@ async def main_async():
                 # Reorder the DataFrame columns to match the expected order
                 token_data_df = token_data_df[expected_columns]
 
+                # Clean all data tuples with expected types
+                # Define expected types for each column based on STAGE_TOKEN_DATA schema
+                expected_types = [
+                    'str', 'str', 'int', 'str', 'str', 'str', 'str', 'str',
+                    'float', 'float', 'int', 'float', 'float', 'float', 'float',
+                    'str', 'str', 'float', 'float', 'float', 'str', 'str'
+                ]
+
                 # Clean all data tuples
-                data_tuples = [tuple(clean_param(x) for x in row) for row in token_data_df.itertuples(index=False, name=None)]
+                data_tuples = [
+                    tuple(clean_param(x, expected_type='float' if idx in [8,9,11,12,13,14,16,17,18,19] else 'int' if idx ==10 else None)
+                          for idx, x in enumerate(row, 1))
+                    for row in token_data_df.itertuples(index=False, name=None)
+                ]
                 logger.info("Cleaned data tuples by replacing 'NAN' and NaN values with None.")
 
-                # Insert data into STAGE_TOKEN_DATA and perform MERGE
+                # Log data types for debugging
+                logger.info("Inspecting data_tuples before insertion:")
+                for i, row in enumerate(data_tuples[:5], 1):
+                    logger.info(f"Row {i} Data Types: {[type(item) for item in row]}")
+                    logger.info(f"Row {i} Data Values: {row}")
+
+                # Insert data into STAGE_TOKEN_DATA using write_pandas
                 try:
-                    # Truncate STAGE_TOKEN_DATA
-                    truncate_sql = f"TRUNCATE TABLE {SNOWFLAKE_DATABASE}.{SNOWFLAKE_SCHEMA}.STAGE_TOKEN_DATA;"
-                    cursor.execute(truncate_sql)
-                    logger.info("Truncated STAGE_TOKEN_DATA table.")
+                    success, nchunks, nrows, _ = write_pandas(conn, token_data_df, 'STAGE_TOKEN_DATA', auto_create_table=False, overwrite=True)
+                    if success:
+                        logger.info(f"Inserted {nrows} records into STAGE_TOKEN_DATA successfully.")
+                    else:
+                        logger.error("Failed to insert data into STAGE_TOKEN_DATA.")
+                        conn.close()
+                        raise Exception("Failed to insert data into STAGE_TOKEN_DATA.")
+                except Exception as e:
+                    logger.exception(f"Error during write_pandas insertion into STAGE_TOKEN_DATA: {e}")
+                    conn.close()
+                    raise
 
-                    # Prepare the INSERT statement for STAGE_TOKEN_DATA
-                    insert_sql = f"""
-                    INSERT INTO {SNOWFLAKE_DATABASE}.{SNOWFLAKE_SCHEMA}.STAGE_TOKEN_DATA (
-                        TOKEN_ADDRESS,
-                        SYMBOL,
-                        DECIMALS,
-                        NAME,
-                        WEBSITE,
-                        TWITTER,
-                        DESCRIPTION,
-                        LOGO_URI,
-                        LIQUIDITY,
-                        MARKET_CAP,
-                        HOLDER_COUNT,
-                        PRICE,
-                        V24H_USD,
-                        V_BUY_HISTORY_24H_USD,
-                        V_SELL_HISTORY_24H_USD,
-                        CREATION_TIMESTAMP,
-                        OWNER,
-                        TOP10_HOLDER_PERCENT,
-                        OWNER_PERCENTAGE,
-                        CREATOR_PERCENTAGE,
-                        LAST_UPDATED,
-                        DATE_ADDED
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-                    );
-                    """
-
-                    # Execute batch insert into STAGE_TOKEN_DATA
-                    cursor.executemany(insert_sql, data_tuples)
-                    logger.info(f"Inserted {len(data_tuples)} records into STAGE_TOKEN_DATA.")
-
-                    # Perform MERGE from STAGE_TOKEN_DATA into TOKEN_DATA
+                # Perform MERGE from STAGE_TOKEN_DATA into TOKEN_DATA
+                try:
                     merge_sql = f"""
                     MERGE INTO {SNOWFLAKE_DATABASE}.{SNOWFLAKE_SCHEMA}.TOKEN_DATA AS target
                     USING {SNOWFLAKE_DATABASE}.{SNOWFLAKE_SCHEMA}.STAGE_TOKEN_DATA AS source
@@ -476,9 +481,12 @@ async def main_async():
                     """
                     cursor.execute(merge_sql)
                     logger.info("Merged data from STAGE_TOKEN_DATA into TOKEN_DATA successfully.")
-
+                except snowflake.connector.errors.ProgrammingError as e:
+                    logger.error(f"Snowflake ProgrammingError during MERGE: {e}")
+                    conn.close()
+                    raise  # Re-raise exception to notify Airflow of the failure
                 except Exception as e:
-                    logger.exception(f"Error during data insertion and merge into TOKEN_DATA: {e}")
+                    logger.exception(f"Error during MERGE operation: {e}")
                     conn.close()
                     raise
 
