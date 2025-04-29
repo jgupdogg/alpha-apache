@@ -1,0 +1,10 @@
+python-langchain 
+supabase
+neo4j
+nodriver
+beautifulsoup4
+pyvirtualdisplay
+pandas
+langchain-anthropic
+langchain-openai
+langchain_pinecone

@@ -1,0 +1,49 @@
+# Python environments
+venv/
+.venv/
+env/
+ENV/
+rapids-*/
+
+# Airflow files
+logs/
+*.log
+airflow.db
+airflow-webserver.pid
+webserver_config.py
+standalone_admin_password.txt
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Browser data and profiles
+profiles/
+**/browser_data/
+**/scraper_profile/
+
+# Large files and binaries
+*.tflite
+*.bin
+*.jar
+# Shell scripts, but keep start_airflow.sh
+*.sh
+!start_airflow.sh
+*.tar.xz
+*.crdownload
+downloaded_files/
+None/
+scraper_data/
+interactive_graph.html
+
+# Browser-related directories
+**/optimization_guide_model_store/
+**/component_crx_cache/
+**/OnDeviceHeadSuggestModel/
+**/Cache/
+**/Cache_Data/
+**/BrowserMetrics*
+
+# Notebooks with outputs
+**/*.ipynb
